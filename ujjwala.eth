@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Crowdfunding {
+    address payable public beneficiary;
+    uint public goal;
+    uint public amountRaised;
+    uint public deadline;
+    uint public minimumContribution;
+    mapping(address => uint) public contributions;
+    bool public fundingGoalReached;
+    bool public crowdsaleClosed;
+
+    constructor(
+        address payable _beneficiary,
+        uint _goal,
+        uint _durationInDays,
+        uint _minimumContribution
+    ) {
+        beneficiary = _beneficiary;
+        goal = _goal;
+        deadline = block.timestamp + (_durationInDays * 1 days);
+        minimumContribution = _minimumContribution;
+    }
+
+    function contribute() public payable {
+        require(!crowdsaleClosed, "Crowdsale is closed.");
+        require(block.timestamp < deadline, "Crowdsale has ended.");
+        require(msg.value >= minimumContribution, "Contribution is below the minimum limit.");
+
+        contributions[msg.sender] += msg.value;
+        amountRaised += msg.value;
+        if (amountRaised >= goal) {
+            fundingGoalReached = true;
+        }
+    }
+
+    function checkGoalReached() public {
+        if (!crowdsaleClosed) {
+            revert("Crowdsale is not closed yet.");
+        }
+        if (!fundingGoalReached) {
+            revert("Funding goal not reached.");
+        }
+        assert(amountRaised >= goal);
+        beneficiary.transfer(amountRaised);
+    }
+
+    function closeCrowdsale() public {
+        require(!crowdsaleClosed, "Crowdsale is already closed.");
+        require(block.timestamp >= deadline, "Crowdsale deadline has not passed yet.");
+        crowdsaleClosed = true;
+        if (amountRaised >= goal) {
+            fundingGoalReached = true;
+        }
+    }
+
+    function refund() public {
+        require(crowdsaleClosed, "Crowdsale is not closed.");
+        require(!fundingGoalReached, "Funding goal reached, no refunds available.");
+
+        uint amount = contributions[msg.sender];
+        require(amount > 0, "No contributions to refund.");
+
+        contributions[msg.sender] = 0;
+        payable(msg.sender).transfer(amount);
+    }
+
+    function extendDeadline(uint _extraDays) public {
+        require(!crowdsaleClosed, "Crowdsale is closed.");
+        deadline += (_extraDays * 1 days);
+    }
+}
